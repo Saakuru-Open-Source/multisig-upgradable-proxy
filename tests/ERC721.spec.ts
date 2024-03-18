@@ -98,7 +98,7 @@ describe('ERC721', function () {
 
   it('Should fail to transfer a token without approval', async function () {
     // Try to transfer the token to addr1 without approval
-    await expect(nft.connect(users[1]).transferFrom(users[0].address, users[1].address, 1)).to.be.revertedWith('ERC721: transfer caller is not owner nor approved');
+    await expect(nft.connect(users[1]).transferFrom(users[0].address, users[1].address, 1)).to.be.revertedWith('ERC721: caller is not token owner or approved');
   });
 
   it('Should approve and transfer a token', async function () {
@@ -122,6 +122,6 @@ describe('ERC721', function () {
 
   it('Should fail to approve a token if not the owner', async function () {
     // addr1 tries to approve users[2] to transfer the token
-    await expect(nft.connect(users[1]).approve(users[2].address, 1)).to.be.revertedWith('ERC721: approve caller is not owner nor approved for all');
+    await expect(nft.connect(users[1]).approve(users[2].address, 1)).to.be.revertedWith('ERC721: approve caller is not token owner or approved for all');
   });
 });

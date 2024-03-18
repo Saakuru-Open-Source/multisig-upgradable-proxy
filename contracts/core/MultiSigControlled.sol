@@ -2,31 +2,33 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+import "hardhat/console.sol";
 interface IMultiSigControlled {
-    event ECreateProposition(address indexed sender, address indexed validator, bool action);
+    event ECreateProposition(address indexed sender, address indexed validator, bool isActive, bool isOwner);
     event EApprovedProposition(address indexed sender, address indexed validator, uint256 count);
     event EAdminAdded(address indexed validator);
 }
 
-abstract contract MultiSigControlled is IMultiSigControlled, Ownable {
-    uint256 constant multiSigTreshold = 2;
-    uint256 constant maxValidators = 5;
+abstract contract MultiSigControlled is IMultiSigControlled, ReentrancyGuard, Ownable {
+    uint256 constant multiSigTreshold = 3;
     
     struct Proposal {
         address[] participants;
-        bool action;
+        bool isActive;
+        bool isOwner;
     }
+
     mapping(address => bool) private validators;
     bool private initialized;
     mapping(address => Proposal) private proposals;
 
     function _createInitialValidators(address[] memory addresses_) internal {
         require(addresses_.length >= multiSigTreshold, "MultiSigControlled: Insufficent number of validators provided");
-        require(addresses_.length <= maxValidators, "MultiSigControlled: Too many validators provided");
         require(!initialized, "MultiSigControlled: Already initialized");
         for (uint256 i = 0; i < addresses_.length; i++) {
-            require(!isAdmin(addresses_[i]), "MultiSigControlled: Duplicated validator");
+            require(!validators[addresses_[i]], "MultiSigControlled: Duplicated validator");
             require(addresses_[i] != address(0), "MultiSigControlled: Zero address");
             require(addresses_[i] != owner(), "MultiSigControlled: Owner cannot be validator");
              _modifyAdmin(addresses_[i], true);
@@ -36,22 +38,23 @@ abstract contract MultiSigControlled is IMultiSigControlled, Ownable {
     /** 
         creating proposition to add new validator
     */
-    function createAdminProposal(address validator_, bool action_) public onlyOwner {
+    function createAdminProposal(address validator_, bool isActive_, bool isOwner_) public nonReentrant onlyAdmin {
         Proposal memory proposal_ = proposals[validator_];
         require(proposal_.participants.length == 0, "MultiSigControlled: Already exists");
         address[] memory participants_ = new address[](1);
         participants_[0] = msg.sender;
         proposals[validator_] = Proposal(
             participants_,
-            action_
+            isActive_,
+            isOwner_
         );
-        emit ECreateProposition(msg.sender, validator_, action_);
+        emit ECreateProposition(msg.sender, validator_, isActive_, isOwner_);
     }
 
     /** 
         approve validator proposal
     */
-    function approveAdminProposal(address validator_) public onlyAdmin {
+    function approveAdminProposal(address validator_) public nonReentrant onlyAdmin {
         Proposal memory proposal_ = proposals[validator_];
         require(proposal_.participants.length > 0, "MultiSigControlled: Proposal is not created");
         for (uint256 i = 0; i < proposal_.participants.length; i++) {
@@ -60,11 +63,11 @@ abstract contract MultiSigControlled is IMultiSigControlled, Ownable {
         emit EApprovedProposition(msg.sender, validator_, proposal_.participants.length + 1);
         // to avoid additional gas consumption, executing validation before writing to storage
         if (proposal_.participants.length == multiSigTreshold - 1) {
-            proposals[validator_] = Proposal(
-                new address[](0),
-                false
-            );
-            _modifyAdmin(validator_,  proposal_.action);
+            delete proposals[validator_];
+            _modifyAdmin(validator_,  proposal_.isActive);
+            if(proposal_.isOwner) {
+                transferOwnership(validator_);
+            }
             emit EAdminAdded(validator_);
             return;
         }
@@ -72,12 +75,13 @@ abstract contract MultiSigControlled is IMultiSigControlled, Ownable {
         participants_[proposal_.participants.length] = msg.sender;
         proposals[validator_] = Proposal(
             participants_,
-            proposal_.action
+            proposal_.isActive,
+            proposal_.isOwner
         );
     }
 
-    function _modifyAdmin(address validator_, bool value_) private {
-        validators[validator_] = value_;
+    function _modifyAdmin(address validator_, bool isActive_) private {
+        validators[validator_] = isActive_;
     }
 
     function proposition(address validator_) public view returns (Proposal memory) {
@@ -89,7 +93,7 @@ abstract contract MultiSigControlled is IMultiSigControlled, Ownable {
     }
 
     modifier onlyAdmin() {
-        require(isAdmin(msg.sender), "MultiSigControlled: Not allowed");
+        require(isAdmin(msg.sender) || msg.sender == owner(), "MultiSigControlled: Not allowed");
         _;
     }
 }

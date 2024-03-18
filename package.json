@@ -16,7 +16,6 @@
     "interact": "ts-node scripts/interact.ts"
   },
   "dependencies": {
-    "@harmony-js/core": "^0.1.57",
     "@nomiclabs/hardhat-ganache": "^2.0.1",
     "@openzeppelin/contracts": "^4.9.6",
     "@symblox/hardhat-abi-gen": "0.2.0",

@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./MultiSigControlled.sol";
 
-abstract contract CoreNFT is ERC721, ERC721Enumerable, ReentrancyGuard, MultiSigControlled {
+abstract contract CoreNFT is ERC721, ERC721Enumerable, MultiSigControlled {
     uint256 public _tokenIdTracker;
     
     string private _uri;
